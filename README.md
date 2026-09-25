@@ -1,360 +1,501 @@
-# MultiEYE: OCT-Assisted Retinal Disease Recognition
+# Multi-Eye — OCT-Enhanced Retinal Disease Recognition
 
-An implementation of **OCT-assisted conceptual knowledge distillation for retinal disease classification from fundus images**, based on the MultiEYE framework proposed by Wang et al.
+**Multi-Eye** is a deep learning project for **retinal disease recognition from fundus images**, enhanced using knowledge learned from **Optical Coherence Tomography (OCT)** images.
 
-The project explores how knowledge learned from **Optical Coherence Tomography (OCT)** images can be transferred to a **fundus-image model**, allowing the final model to perform retinal disease classification using fundus images alone.
+The project is based on the **MultiEYE** dataset and the **OCT-assisted Conceptual Distillation Approach (OCT-CoDA)** proposed in the research work:
 
-> **Reference:** Wang et al., *MultiEYE: Dataset and Benchmark for OCT-Enhanced Retinal Disease Recognition From Fundus Images*, IEEE Transactions on Medical Imaging, 2025.
+> **MultiEYE: Dataset and Benchmark for OCT-Enhanced Retinal Disease Recognition From Fundus Images**
+> Lehan Wang, Chongchong Qi, Chubin Ou, Lin An, Mei Jin, Xiangbin Kong, Xiaomeng Li
+> *IEEE Transactions on Medical Imaging, 2025*
 
----
-
-## 📌 Overview
-
-Traditional multimodal retinal disease classification approaches often require paired fundus and OCT images during both training and testing.
-
-The MultiEYE approach uses a different setting:
-
-* **OCT images** are used during training to provide additional disease-related knowledge.
-* **Fundus images** are used to train the target model.
-* The OCT model acts as a **teacher**.
-* The fundus model acts as a **student**.
-* During inference, only the **fundus model** is required.
-
-The original MultiEYE work introduces **OCT-CoDA (OCT-assisted Conceptual Distillation Approach)**, where disease-related concepts are used as an intermediate representation for transferring knowledge from OCT to fundus images.
+The main idea is to use OCT images as a **teacher modality during training** and transfer disease-related knowledge to a **fundus-image student model**. During inference, only the fundus image is required.
 
 ---
 
-## 🎯 Project Objective
+## 📌 Project Overview
 
-The objective of this implementation is to reproduce the core OCT-assisted knowledge distillation pipeline and investigate whether OCT-derived knowledge can improve retinal disease recognition from fundus photographs.
+Fundus photography and Optical Coherence Tomography (OCT) provide complementary information for retinal disease diagnosis.
 
-The implementation focuses on:
+* **Fundus images** provide a comprehensive view of the retina, optic nerve, and vascular network.
+* **OCT images** provide detailed information about retinal structure and thickness.
 
-1. Training an OCT teacher model.
-2. Training a fundus student model.
-3. Generating image-concept similarity representations.
-4. Transferring knowledge using:
+Conventional multimodal approaches generally require paired fundus and OCT images during both training and testing. However, obtaining paired multimodal medical data can be difficult.
 
-   * Global Prototypical Distillation (GPD)
-   * Local Contrastive Distillation (LCD)
-5. Handling class imbalance using class-weighted cross-entropy.
-6. Evaluating the final fundus model using multiple classification metrics.
+This project follows the **OCT-enhanced disease recognition from fundus images** setting:
+
+```text
+                 Training
+        ┌─────────────────────────┐
+        │                         │
+        ▼                         ▼
+   OCT Images                Fundus Images
+        │                         │
+        ▼                         ▼
+ OCT Teacher Model          Fundus Student Model
+        │                         │
+        │    Knowledge Transfer   │
+        └──────────┬──────────────┘
+                   ▼
+             OCT-CoDA
+                   │
+                   ▼
+          Trained Fundus Model
+                   │
+                   ▼
+                Testing
+                   │
+                   ▼
+          Fundus Image Only
+                   │
+                   ▼
+          Retinal Disease
+             Prediction
+```
+
+The research framework specifically uses **unpaired multimodal data during training** and requires only fundus photographs during testing.
 
 ---
 
-## 🧠 Methodology
+# 🎯 Objectives
 
-### 1. Concept-Based Representation
+The main objectives of the project are:
 
-The model uses disease-related textual concepts and a vision-language model to calculate the similarity between an image and the concepts.
+* To perform retinal disease classification using fundus images.
+* To utilize OCT images as an additional source of disease-related knowledge during training.
+* To transfer knowledge from an OCT teacher model to a fundus student model.
+* To use disease-related concepts as an interpretable connection between the two modalities.
+* To improve fundus-based retinal disease recognition without requiring OCT images during inference.
 
-For each image:
+---
+
+# 🧠 Proposed Approach
+
+The project follows the **OCT-assisted Conceptual Distillation Approach (OCT-CoDA)**.
+
+OCT-CoDA consists of three major stages:
+
+1. **LLM-based concept generation**
+2. **Concept-decoupled disease classification**
+3. **OCT-assisted conceptual knowledge distillation**
+
+The proposed framework uses the relationship between **image features and disease-related concepts** to transfer useful knowledge from OCT images to fundus images.
+
+---
+
+## 1. LLM-Based Concept Generation
+
+Disease-related visual concepts are generated to describe fine-grained characteristics of retinal diseases.
+
+Instead of relying only on disease labels, the approach uses detailed disease attributes as an intermediate representation.
+
+The research uses an LLM-based process to generate disease concepts and applies a Chain-of-Thought style prompting strategy to consider different retinal regions and disease characteristics.
+
+Concepts can describe characteristics such as:
+
+* Color
+* Shape
+* Location
+* Retinal abnormalities
+* Structural changes
+* Disease-specific visual characteristics
+
+These concepts provide an interpretable bridge between the OCT and fundus modalities.
+
+---
+
+# 2. Concept-Decoupled Network
+
+The image encoder extracts visual features from each image.
+
+These image features are compared with the corresponding concept embeddings.
 
 ```text
 Image
-  ↓
-Vision Encoder
-  ↓
-Image Embedding
-  ↓
-Concept Similarity
-  ↓
+  │
+  ▼
+Image Encoder
+  │
+  ▼
+Image Features
+  │
+  ├───────────────┐
+  │               │
+  ▼               ▼
+Concept Embeddings
+  │
+  ▼
+Image-Concept Similarity
+  │
+  ▼
 Concept Classifier
-  ↓
+  │
+  ▼
 Disease Prediction
 ```
 
-The original paper generates disease concepts using an LLM and uses a vision-language model to relate image features with those concepts.
+The image-concept similarity matrix is used as the input to the final fully connected classification layer.
 
 ---
 
-### 2. OCT Teacher Model
+# 3. OCT Teacher and Fundus Student
 
-The first stage trains a teacher model using OCT images.
+The framework uses two models:
+
+### OCT Teacher
+
+The OCT model learns disease-related information from OCT scans.
+
+### Fundus Student
+
+The fundus model learns to perform retinal disease classification using fundus photographs while receiving additional knowledge from the OCT teacher.
 
 ```text
-OCT Image
-    ↓
-FLAIR Vision Encoder
-    ↓
-Concept Similarities
-    ↓
-Concept Classifier
-    ↓
-Disease Prediction
+             OCT Image
+                 │
+                 ▼
+          OCT Image Encoder
+                 │
+                 ▼
+          OCT Concept Features
+                 │
+                 │
+                 │ Knowledge
+                 │ Distillation
+                 ▼
+          Fundus Student
+                 ▲
+                 │
+          Fundus Image
 ```
 
-The trained OCT model is then frozen and used as the teacher during student training.
+The OCT model acts as the **teacher**, while the fundus model acts as the **student**.
 
 ---
 
-### 3. Fundus Student Model
+# 🔄 Knowledge Distillation
 
-The second stage trains the target fundus model.
+The proposed OCT-CoDA framework consists of two major knowledge-distillation components:
+
+* **Global Prototypical Distillation (GPD)**
+* **Local Contrastive Distillation (LCD)**
+
+These components transfer disease-related knowledge from the OCT modality to the fundus modality.
+
+---
+
+## Global Prototypical Distillation
+
+**GPD** transfers global disease-level information.
+
+The method constructs class-level prototypes from the concept representations and aligns the OCT teacher representation with the fundus student representation.
 
 ```text
-                 ┌─────────────────┐
-                 │   OCT Teacher   │
-                 └────────┬────────┘
-                          │
-                    OCT Knowledge
-                          │
-                          ▼
-Fundus Image → Student Model → Disease Prediction
-                    ▲
-                    │
-              GPD + LCD Loss
+OCT Images
+     │
+     ▼
+OCT Concept Representation
+     │
+     ▼
+Class Prototypes
+     │
+     │
+     ▼
+   GPD Loss
+     ▲
+     │
+     │
+Fundus Concept Representation
+     │
+     ▼
+Fundus Class Prototypes
 ```
 
-The OCT branch is only required during training. At inference time, the OCT branch is discarded and the fundus model performs the prediction.
+This encourages the fundus student to learn disease-level characteristics captured by the OCT teacher.
 
 ---
 
-## 🔄 Knowledge Distillation
+## Local Contrastive Distillation
 
-### Global Prototypical Distillation (GPD)
+**LCD** performs sample-level knowledge transfer.
 
-GPD aligns the disease-level concept representations between the OCT teacher and fundus student.
-
-For each disease class, a prototype is calculated from the concept similarities of the samples.
-
-The loss minimizes the distance between the OCT and fundus class prototypes.
+It encourages samples belonging to the same disease category to have similar representations while separating representations belonging to different disease categories.
 
 ```text
-OCT Concept Prototype
-          │
-          │
-          ▼
-     GPD Loss
-          ▲
-          │
-          │
-Fundus Concept Prototype
+OCT Sample ──────────────┐
+                         │
+                         ▼
+                    Contrastive
+                       Loss
+                         ▲
+                         │
+Fundus Sample ───────────┘
 ```
 
-This transfers generalized disease-level information from the OCT modality to the fundus modality.
+This allows the fundus student to learn finer disease-related characteristics from the OCT modality.
 
 ---
 
-### Local Contrastive Distillation (LCD)
+# 🩺 Disease Categories
 
-LCD operates at the sample level.
+The MultiEYE dataset contains **nine retinal disease categories**:
 
-Samples belonging to the same disease class are treated as positive pairs, while samples from different classes act as negatives.
+| No. | Disease                                     |
+| --: | ------------------------------------------- |
+|   0 | Normal                                      |
+|   1 | Dry Age-related Macular Degeneration (dAMD) |
+|   2 | Central Serous Chorioretinopathy (CSC)      |
+|   3 | Diabetic Retinopathy (DR)                   |
+|   4 | Glaucoma (GLC)                              |
+|   5 | Macular Epiretinal Membrane (MEM)           |
+|   6 | Myopia (MYO)                                |
+|   7 | Retinal Vein Occlusion (RVO)                |
+|   8 | Wet Age-related Macular Degeneration (wAMD) |
 
-This helps the student model:
-
-* Learn sample-level disease characteristics from OCT.
-* Preserve useful fundus-specific information.
-* Bring representations of the same disease closer together.
-
----
-
-### Total Training Loss
-
-The student model uses:
-
-```text
-Total Loss
-    =
-Classification Loss
-    +
-α × GPD Loss
-    +
-β × LCD Loss
-```
-
-In this implementation:
-
-```text
-α = 0.6
-β = 0.05
-τ = 10.0
-```
-
-These values follow the configuration used in the reference implementation/paper.
+The dataset construction process retained samples with a single disease label and divided the data into training, validation, and test sets while ensuring that images from the same patient do not appear across different subsets.
 
 ---
 
-## 🩺 Disease Classes
+# 📊 MultiEYE Dataset
 
-The MultiEYE benchmark contains nine disease categories:
+The MultiEYE benchmark contains:
 
-| Class | Description                                 |
-| ----- | ------------------------------------------- |
-| 0     | Normal                                      |
-| 1     | Dry Age-related Macular Degeneration (dAMD) |
-| 2     | Central Serous Chorioretinopathy (CSC)      |
-| 3     | Diabetic Retinopathy (DR)                   |
-| 4     | Glaucoma (GLC)                              |
-| 5     | Macular Epiretinal Membrane (MEM)           |
-| 6     | Myopia (MYO)                                |
-| 7     | Retinal Vein Occlusion (RVO)                |
-| 8     | Wet Age-related Macular Degeneration (wAMD) |
+* **58,036 fundus photographs**
+* **45,923 OCT B-scans**
+* **9 disease categories**
 
-The original MultiEYE dataset contains **58,036 fundus photographs and 45,923 OCT B-scans** across these nine classes.
+The dataset combines public datasets with in-house data and was designed specifically for OCT-enhanced retinal disease recognition from fundus images.
+
+The dataset uses **unpaired multimodal data**, meaning the OCT and fundus images do not necessarily belong to the same patient, but share the same disease label space.
 
 ---
 
-## 🏗️ Model Configuration
+# 🏗️ Model Architecture
 
-### Backbone
+The research evaluates the approach using vision-language model backbones including:
 
-This implementation uses:
-
+* **CLIP**
 * **FLAIR**
-* ResNet-based vision encoder
-* Vision-language concept representation
-* Frozen text encoder
-* Trainable image encoder and concept classifier
 
-The notebook loads the FLAIR implementation and uses the FLAIR model for the concept-based classification pipeline.
+The image encoder is based on **ResNet-50**.
 
-### Image Processing
+For FLAIR, images are resized to **512 × 512**, while CLIP uses **224 × 224** images.
 
-Fundus preprocessing includes:
+The project implementation uses the concept-based vision-language approach to connect retinal images with disease-related concepts.
 
-* Resize
-* Random crop
-* Horizontal flip
-* Vertical flip
+---
+
+# 🛠️ Technologies
+
+The project involves the following technologies and concepts:
+
+* Python
+* PyTorch
+* Deep Learning
+* Computer Vision
+* Medical Image Analysis
+* Vision-Language Models
+* FLAIR
+* ResNet-50
+* Knowledge Distillation
+* Contrastive Learning
+* Concept Bottleneck / Concept-based Learning
+* Large Language Models
+* OCT Image Processing
+* Fundus Image Processing
+* Scikit-learn
+* NumPy
+* Pandas
+* Matplotlib
+
+---
+
+# 🖼️ Image Preprocessing
+
+The research preprocessing pipeline includes:
+
+### Fundus Images
+
+* Contrast-Limited Adaptive Histogram Equalization (CLAHE)
+* Resizing
+* Random cropping
+* Flipping
 * Rotation
-* Color jitter
-* Normalization
+* Contrast adjustment
+* Saturation adjustment
+* Brightness adjustment
 
-OCT preprocessing includes:
+### OCT Images
 
-* Resize
-* Horizontal flip
+* Median filtering
+* Resizing
+* Random cropping
+* Flipping
 * Rotation
-* Normalization
+* Image augmentation
 
-The original paper similarly applies preprocessing and augmentation to both modalities.
-
----
-
-## ⚖️ Class Imbalance Handling
-
-The implementation calculates **class weights** from the fundus training labels and uses weighted cross-entropy during training.
-
-This is particularly useful because retinal disease datasets can contain substantially different numbers of samples across classes.
-
-```python
-class_weights = get_class_weights(fundus_train_labels)
-
-loss = F.cross_entropy(
-    logits,
-    labels,
-    weight=class_weights
-)
-```
+These preprocessing and augmentation operations are applied to improve model training and maintain consistency between experiments.
 
 ---
 
-## ⚙️ Training Configuration
+# ⚙️ Training Configuration
 
-| Parameter             |                     Value |
-| --------------------- | ------------------------: |
-| Number of classes     |                         9 |
-| Teacher epochs        |                        80 |
-| Student epochs        |                       100 |
-| Batch size            |                         4 |
-| Gradient accumulation |                        16 |
-| Effective batch size  |                        64 |
-| Learning rate         |                      1e-4 |
-| Optimizer             |                     AdamW |
-| Weight decay          |                      1e-4 |
-| GPD weight (α)        |                       0.6 |
-| LCD weight (β)        |                      0.05 |
-| Temperature (τ)       |                        10 |
-| Scheduler             | Warmup + Cosine Annealing |
-| Gradient clipping     |                       1.0 |
+The reported implementation uses:
 
-The notebook uses gradient accumulation to obtain an effective batch size of 64 while keeping the per-step batch size small enough for GPU memory constraints.
+| Parameter                |                   Value |
+| ------------------------ | ----------------------: |
+| Backbone                 |               ResNet-50 |
+| Vision-language backbone |            CLIP / FLAIR |
+| Optimizer                |                   AdamW |
+| Learning Rate            |                  `1e-4` |
+| Batch Size               |                    `64` |
+| Learning Rate Decay      |        Cosine Annealing |
+| Temperature (τ)          |                    `10` |
+| GPD Weight (α)           |                   `0.6` |
+| LCD Weight (β)           |                  `0.05` |
+| GPU                      | NVIDIA GeForce RTX 3090 |
+
+These values are reported in the MultiEYE research paper.
 
 ---
 
-## 📊 Evaluation Metrics
+# 📈 Evaluation Metrics
 
-The implementation evaluates the model using:
+The model is evaluated using eight metrics:
 
-* Precision
-* Recall
-* Specificity
-* Precision-Recall F1
-* Sensitivity-Specificity F1
-* Mean Average Precision (MAP)
-* Accuracy
-* Cohen's Kappa
+1. **Precision**
+2. **Recall**
+3. **Specificity**
+4. **Precision-Recall F1**
+5. **Sensitivity-Specificity F1**
+6. **Mean Average Precision (MAP)**
+7. **Accuracy**
+8. **Cohen's Kappa**
 
-These metrics are also used in the MultiEYE paper to evaluate performance under class imbalance.
+These metrics provide a broader evaluation of classification performance, particularly for class-imbalanced medical datasets.
 
 ---
 
-## 📁 Project Structure
+# 🔬 Experimental Comparison
+
+The MultiEYE research evaluates multiple approaches, including:
+
+### Fundus Model
+
+A fundus feature extractor followed by a linear classifier.
+
+### Fundus + Concept
+
+A concept-decoupled fundus model using a fixed text encoder, trainable vision encoder, and concept classifier.
+
+### FDDM
+
+A knowledge-distillation approach adapted to transfer knowledge from OCT to fundus in the MultiEYE setting.
+
+### OCT-CoDA
+
+The proposed OCT-assisted conceptual distillation framework using:
+
+* Disease concepts
+* Global Prototypical Distillation
+* Local Contrastive Distillation
+
+---
+
+# 🔍 Why Conceptual Distillation?
+
+Directly transferring image features can also transfer information that is not useful for disease recognition, such as:
+
+* Background information
+* Disease-irrelevant features
+* Modality-specific noise
+
+OCT-CoDA instead uses **disease-related concepts** as an intermediate representation.
+
+This makes the knowledge-transfer process more controlled and interpretable.
+
+---
+
+# 🚀 Inference
+
+One of the key advantages of this approach is that OCT images are **not required during inference**.
+
+The final workflow is:
 
 ```text
-MultiEYE/
+             Fundus Image
+                   │
+                   ▼
+             Image Encoder
+                   │
+                   ▼
+          Image-Concept Similarity
+                   │
+                   ▼
+           Concept Classifier
+                   │
+                   ▼
+          Disease Prediction
+```
+
+This allows the trained model to perform retinal disease recognition using only a fundus photograph.
+
+---
+
+# 📁 Repository Structure
+
+```text
+Multi-Eye/
 │
-├── mini_proj_v4.ipynb
 ├── README.md
 │
-├── checkpoints/
-│   ├── oct_teacher_final.pth
-│   ├── student_best.pth
+├── mini_proj_v4.ipynb
+│
+├── results/
 │   └── ...
 │
-└── results/
-    ├── training_curves/
-    └── evaluation_results/
+├── checkpoints/
+│   └── ...
+│
+└── data/
+    └── ...
 ```
 
-> Dataset files and large model checkpoints are intentionally not included in this repository unless required.
+> Large datasets and model checkpoints should generally not be committed directly to GitHub. Configure the dataset paths locally before running the notebook.
 
 ---
 
-## 🚀 How to Run
+# ▶️ How to Run
 
-### 1. Clone the repository
+## 1. Clone the Repository
 
 ```bash
-git clone https://github.com/<your-username>/<your-repository>.git
-cd <your-repository>
+git clone https://github.com/JOHANAPRISCY05/Multi-Eye.git
+cd Multi-Eye
 ```
 
-### 2. Install dependencies
+## 2. Install Dependencies
 
 ```bash
 pip install torch torchvision
-pip install transformers
-pip install scikit-learn
-pip install numpy pandas matplotlib
-pip install pillow tqdm
+pip install numpy pandas scikit-learn
+pip install matplotlib pillow tqdm
 ```
 
-Install the FLAIR implementation:
+Install any additional dependencies required by the FLAIR implementation used by the notebook.
 
-```bash
-pip install git+https://github.com/jusiro/FLAIR.git
-```
+## 3. Prepare the Dataset
 
-### 3. Prepare the Dataset
+Download and prepare the MultiEYE dataset separately.
 
-Download/obtain the MultiEYE dataset and organize the paths according to the notebook configuration.
+Update the dataset paths in the notebook to point to your local dataset location.
 
-Update:
+For example:
 
 ```python
-DATA_ROOT = "/path/to/MultiEYE/multieye_data/"
+DATA_ROOT = "/path/to/MultiEYE/"
 ```
 
-Also update the concept file path:
-
-```python
-concepts_path = "/path/to/concepts_raw.npy"
-```
-
-### 4. Run the Notebook
+## 4. Run the Notebook
 
 Open:
 
@@ -362,146 +503,54 @@ Open:
 mini_proj_v4.ipynb
 ```
 
-and execute the cells in order.
+and execute the cells sequentially.
 
 ---
 
-## 💾 Checkpoints
+# 📌 Important Note
 
-The notebook supports checkpoint-based training and resuming.
+This repository represents an **academic implementation/study based on the MultiEYE research work**.
 
-Example:
+The underlying OCT-CoDA methodology, MultiEYE dataset, and associated research concepts belong to the original authors.
 
-```text
-checkpoints/
-├── teacher_latest.pth
-├── teacher_scheduler.pth
-├── oct_teacher_final.pth
-├── student_latest.pth
-├── student_best.pth
-└── student_scheduler.pth
-```
-
-This allows long training runs to be resumed without starting from the beginning.
+This project should not be represented as the original publication or as an independent invention of the OCT-CoDA methodology.
 
 ---
 
-## 🔬 Training Pipeline
+# ⚠️ Medical Disclaimer
 
-The complete workflow is:
+This project is intended for **academic and research purposes only**.
 
-```text
-                 MultiEYE Dataset
-                       │
-          ┌────────────┴────────────┐
-          │                         │
-      OCT Images              Fundus Images
-          │                         │
-          ▼                         ▼
-   OCT Teacher Model        Fundus Student Model
-          │                         │
-          │                  Classification Loss
-          │                         │
-          └───────┐         ┌───────┘
-                  │         │
-                  ▼         ▼
-                 GPD + LCD
-                     │
-                     ▼
-              Student Training
-                     │
-                     ▼
-             Final Fundus Model
-                     │
-                     ▼
-              Fundus Image Only
-                     │
-                     ▼
-              Disease Prediction
-```
+The model is not a clinically validated diagnostic system and should not be used to make medical decisions or replace professional ophthalmological examination.
 
 ---
 
-## 📈 Results
-
-The notebook evaluates the trained student model on the fundus validation set and reports the implemented MultiEYE evaluation metrics.
-
-Example output:
-
-```python
-metrics = evaluate(
-    student_model,
-    fundus_val_loader,
-    device,
-    phase="Student Eval"
-)
-
-metrics
-```
-
-The reported metrics include:
-
-```text
-Precision
-Recall
-Specificity
-P-R F1
-S-S F1
-MAP
-Accuracy
-Kappa
-```
-
-Add your final experimental results here after completing the final run:
-
-| Metric      | Student Model |
-| ----------- | ------------: |
-| Precision   |             — |
-| Recall      |             — |
-| Specificity |             — |
-| P-R F1      |             — |
-| S-S F1      |             — |
-| MAP         |             — |
-| Accuracy    |             — |
-| Kappa       |             — |
-
----
-
-## 📚 Reference
-
-This project is based on:
+# 📚 Reference
 
 **Lehan Wang, Chongchong Qi, Chubin Ou, Lin An, Mei Jin, Xiangbin Kong, and Xiaomeng Li.**
 
-> *MultiEYE: Dataset and Benchmark for OCT-Enhanced Retinal Disease Recognition From Fundus Images.*
+**“MultiEYE: Dataset and Benchmark for OCT-Enhanced Retinal Disease Recognition From Fundus Images.”**
 
-IEEE Transactions on Medical Imaging, Vol. 44, No. 4, 2025.
+*IEEE Transactions on Medical Imaging, Volume 44, Issue 4, April 2025.*
 
-Original research repository:
+DOI: `10.1109/TMI.2024.3518067`
 
-```text
+The paper describes the MultiEYE dataset and OCT-assisted Conceptual Distillation Approach (OCT-CoDA).
+
+### Original Research Repository
+
 https://github.com/xmed-lab/MultiEYE
-```
 
 ---
 
-## ⚠️ Disclaimer
-
-This repository contains an academic implementation/experimental reproduction of the MultiEYE methodology.
-
-It is intended for **research and educational purposes only** and should not be used as a standalone medical diagnostic system.
-
-The original MultiEYE research also notes limitations related to unseen diseases and dependence on the ophthalmology knowledge contained in the pretrained foundation model.
-
----
-
-## 👩‍💻 Author
+# 👩‍💻 Author
 
 **Johana Priscy John Ponraj**
 
-B.Tech CSE — Artificial Intelligence & Data Science
+B.Tech Computer Science and Engineering
+Specialization: Artificial Intelligence & Data Science
 SASTRA Deemed University
 
 ---
 
-⭐ If you find this implementation useful, consider starring the repository.
+⭐ **If you find this project useful, consider giving the repository a star.**
